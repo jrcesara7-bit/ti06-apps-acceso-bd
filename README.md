@@ -21,49 +21,83 @@ Los nueve usan consultas parametrizadas y ninguno trae credenciales en el códig
 | **Inyección de SQL, lado a lado** | **Comparación de los tres back-ends** |
 | ![Inyección de SQL](docs/img/03_inyeccion_sql.png) | ![Comparar back-ends](docs/img/04_comparar_backends.png) |
 
-## Versiones con las que se probó
+## Requisitos
 
-| Lenguaje | Versión | Driver y librerías |
-|---|---|---|
-| JavaScript | Node.js 22.22 | mysql2 3.x, express 4.x, express-session 1.x |
-| Python | Python 3.14 | PyMySQL 1.2, Flask 3.1, Tkinter (viene con Python) |
-| PHP | PHP 8.3 | PDO con la extensión pdo_mysql |
-| Servidor de BD | MariaDB 10.11, compatible con MySQL | |
+Lo probé en Linux. En Windows y macOS los pasos son los mismos, con las diferencias que se marcan en cada paso.
+
+| Qué | Versión mínima | Probado con | Notas |
+|---|---|---|---|
+| MySQL o MariaDB | MySQL 8 o MariaDB 10.5 | MariaDB 10.11 | Hace falta un usuario administrador para el paso 1 |
+| Node.js | 22.9 | 22.22 | Solo para la carpeta `javascript` |
+| Python | 3.10 | 3.14 | Solo para `python` y para la prueba de contrato |
+| PHP | 8.3 | 8.3 | Solo para `php`, con las extensiones `pdo_mysql` y `mbstring` |
+
+No hace falta instalar los tres lenguajes. Cada carpeta funciona por separado.
+
+- En Linux, Tkinter se instala aparte (`sudo apt install python3-tk` o `sudo dnf install python3-tkinter`).
+- En Windows, las extensiones de PHP se activan quitando el `;` de `extension=pdo_mysql` y `extension=mbstring`
+  en `php.ini`. El comando `php -m` muestra las que están activas.
+- Si `python` no existe en tu sistema, usa `python3` (Linux y macOS) o `py` (Windows).
+
+Todos los comandos se escriben en una terminal abierta en la carpeta `prototipos`, salvo que el paso diga otra.
 
 ## 1. Preparar la base de datos
 
-Con un usuario administrador de MySQL o MariaDB:
+Entra al cliente de MySQL como administrador.
+
+```bash
+mysql -u root -p
+```
+
+Dentro del cliente, crea la base, carga las tablas y crea los dos usuarios. Cambia las contraseñas por las tuyas.
 
 ```sql
 CREATE DATABASE cpremier;
+USE cpremier;
+SOURCE sql/cpremier.sql;
+
 CREATE USER 'alumno'@'%' IDENTIFIED BY 'elige_una_contraseña';
 GRANT SELECT ON cpremier.* TO 'alumno'@'%';
-```
 
-```bash
-mysql -u root -p cpremier < sql/cpremier.sql
-```
-
-Ese usuario solo lee, que es lo único que necesitan HolaMundo01 y HolaMundo02. Para el HolaMundo03 hace falta un
-usuario que además pueda escribir en la tabla de asignaciones:
-
-```sql
 CREATE USER 'app'@'%' IDENTIFIED BY 'elige_otra_contraseña';
 GRANT SELECT ON cpremier.* TO 'app'@'%';
 GRANT INSERT, UPDATE, DELETE ON cpremier.asignacion TO 'app'@'%';
 ```
 
+| Usuario | Permisos | Dónde se usa |
+|---|---|---|
+| `alumno` | Solo lectura | Para iniciar sesión en la pantalla de HolaMundo02 |
+| `app` | Lectura, y escritura en `asignacion` | En el archivo `.env`, para HolaMundo01 y HolaMundo03 |
+
 ## 2. Configurar la conexión
 
-En cada carpeta copia `.env.example` como `.env` y escribe tus datos (host, puerto, base, usuario y contraseña).
-HolaMundo01 lee usuario y contraseña de ahí. HolaMundo02 solo toma host, puerto y base, porque el usuario y la
-contraseña se piden en pantalla.
+En cada carpeta de lenguaje que vayas a usar, copia `.env.example` como `.env`.
+
+```bash
+cp javascript/.env.example javascript/.env      # Linux y macOS
+copy javascript\.env.example javascript\.env    # Windows
+```
+
+Repite lo mismo con `python` y `php`. Luego abre cada `.env` y llénalo así.
+
+```
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=cpremier
+DB_USER=app
+DB_PASSWORD=la_contraseña_de_app
+```
+
+HolaMundo02 solo toma de ahí el host, el puerto y la base, porque el usuario y la contraseña se piden en pantalla.
 
 ## 3. Ejecutar
 
-### JavaScript (`/javascript`)
+Cada servidor ocupa su terminal mientras está encendido. Se apaga con `Ctrl + C`.
+
+### JavaScript
 
 ```bash
+cd javascript
 npm install
 npm run hola1                 # todos los trabajadores
 npm run hola1 -- Fontanero    # filtrados por oficio
@@ -71,10 +105,12 @@ npm run hola2                 # abre http://localhost:3000
 npm run hola3                 # API REST en http://localhost:3001
 ```
 
-### Python (`/python`)
+### Python
 
 ```bash
-python -m venv .venv && source .venv/bin/activate    # en Windows: .venv\Scripts\activate
+cd python
+python -m venv .venv
+source .venv/bin/activate     # en Windows es .venv\Scripts\activate
 pip install -r requirements.txt
 python holamundo01.py
 python holamundo01.py Fontanero
@@ -82,14 +118,13 @@ python holamundo02.py         # abre la ventana de escritorio
 python holamundo03_api.py     # API REST en http://localhost:3002
 ```
 
-### PHP (`/php`)
-
-Requiere la extensión `pdo_mysql` activa (`php -m` debe listarla).
+### PHP
 
 ```bash
+cd php
 php holamundo01.php
 php holamundo01.php Fontanero
-php -S localhost:8080 holamundo02.php    # abre http://localhost:8080
+php -S localhost:8080 holamundo02.php        # abre http://localhost:8080
 php -S localhost:3003 holamundo03_api.php    # API REST en http://localhost:3003
 ```
 
@@ -103,7 +138,7 @@ php -S localhost:3003 holamundo03_api.php    # API REST en http://localhost:3003
 
 ## HolaMundo03, un cliente y tres back-ends
 
-Enciende una, dos o las tres APIs (con el usuario `app` en el `.env`) y abre cualquiera de ellas en el navegador,
+Enciende una, dos o las tres APIs y abre cualquiera de ellas en el navegador,
 por ejemplo http://localhost:3001. La página permite:
 
 - Cambiar de back-end con los botones Node.js, Python y PHP. La pantalla sigue igual porque las tres APIs
@@ -126,17 +161,31 @@ por ejemplo http://localhost:3001. La página permite:
 | DELETE /api/asignaciones/{trabajador}/{edificio}/{fecha} | Borra | 204, 404 |
 | GET /api/demo/inyeccion?modo=&oficio= | Demostración de inyección | 200 |
 
-Prueba de contrato, con las tres APIs encendidas:
+### Prueba de contrato
+
+Con las tres APIs encendidas, desde la carpeta `prototipos`. No necesita instalar nada, solo Python.
 
 ```bash
 python pruebas/probar_apis.py
 ```
 
-Corre 15 comprobaciones en cada back-end y verifica que los tres devuelvan el mismo JSON en la lista y en el esquema. Crea una asignación de
-prueba y la borra al terminar.
+Corre 15 comprobaciones en cada back-end y verifica que los tres devuelvan el mismo JSON en la lista y en el
+esquema. Crea una asignación de prueba y la borra al terminar.
 
 La ruta `/api/demo/inyeccion` con `modo=concatenada` es vulnerable a propósito, solo hace un SELECT y existe para
 enseñar el problema. La API no pide inicio de sesión y escucha solo en `localhost`.
+
+## Problemas comunes
+
+| Mensaje | Causa | Solución |
+|---|---|---|
+| `Falta DB_USER` | No existe el `.env` en esa carpeta | Repetir el paso 2 |
+| `Access denied for user` | Usuario o contraseña incorrectos | Revisar el `.env` o lo que se escribió en pantalla |
+| `ECONNREFUSED` o `Can't connect` | El servidor de BD está apagado o el puerto es otro | Encender MySQL y revisar `DB_HOST` y `DB_PORT` |
+| `EADDRINUSE` o `Address already in use` | El puerto ya lo ocupa otro programa | Cerrar el otro programa o la terminal anterior |
+| `could not find driver` | PHP sin `pdo_mysql` | Activar la extensión en `php.ini` |
+| `No module named tkinter` | Falta Tkinter en Linux | Instalar el paquete que aparece en Requisitos |
+| El cliente web marca un back-end sin conexión | Esa API no está encendida | Encenderla o elegir otro back-end |
 
 ## Seguridad
 
