@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPremier · un cliente, tres back-ends</title>
+<style>
+  /* Colores como variables, para que el tema oscuro solo cambie esta lista. */
+  :root {
+    --fondo: #f3f4f6; --panel: #ffffff; --tinta: #16181d; --tenue: #5b6270; --linea: #dfe2e8;
+    --suave: #eef0f4; --acento: #2457d6; --acento-tinta: #ffffff; --ok: #0b7a4b; --mal: #b3261e;
+    --sombra: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .08);
+  }
+  :root[data-tema="oscuro"] {
+    --fondo: #0f1115; --panel: #181b21; --tinta: #e8eaee; --tenue: #9aa3b2; --linea: #2a2f39;
+    --suave: #20242c; --acento: #7aa2ff; --acento-tinta: #0b1020; --ok: #4cc38a; --mal: #ff8a80;
+    --sombra: 0 1px 2px rgba(0, 0, 0, .5);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--fondo); color: var(--tinta); line-height: 1.45; }
+  h1 { font-size: 1.05rem; margin: 0; letter-spacing: -.01em; }
+  h2 { font-size: 1rem; margin: 0 0 4px; }
+  p { margin: 0; }
+  .tenue { color: var(--tenue); font-size: .85rem; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .8rem; }
+
+  header { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--linea);
+           padding: 12px 24px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .marca { display: flex; flex-direction: column; margin-right: auto; }
+  .segmento { display: inline-flex; flex-wrap: wrap; max-width: 100%; background: var(--suave); border-radius: 9px; padding: 3px; gap: 2px; }
+  .segmento button { border: 0; background: transparent; color: var(--tenue); padding: 7px 14px; border-radius: 7px;
+                     font: inherit; font-weight: 600; cursor: pointer; }
+  .segmento button[aria-pressed="true"], .segmento button[aria-selected="true"] { background: var(--panel); color: var(--tinta); box-shadow: var(--sombra); }
+  #estado { font-size: .82rem; padding: 6px 11px; border-radius: 999px; background: var(--suave); display: inline-flex; gap: 7px; align-items: center; }
+  #estado::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--mal); }
+  #estado.en-linea::before { background: var(--ok); }
+
+  .pagina { max-width: 1280px; margin: 0 auto; padding: 18px 20px 40px; display: grid; gap: 18px;
+            grid-template-columns: minmax(0, 1fr) 330px; align-items: start; }
+  .panel { background: var(--panel); border: 1px solid var(--linea); border-radius: 12px; box-shadow: var(--sombra); padding: 18px 20px; }
+  nav { margin-bottom: 14px; }
+  .vista[hidden] { display: none; }
+
+  button, input, select { font: inherit; }
+  input, select { padding: 8px 10px; border: 1px solid var(--linea); border-radius: 8px; background: var(--panel); color: var(--tinta); max-width: 100%; }
+  .boton { border: 0; border-radius: 8px; padding: 8px 15px; background: var(--acento); color: var(--acento-tinta); font-weight: 600; cursor: pointer; }
+  .boton.sec { background: var(--panel); color: var(--tinta); border: 1px solid var(--linea); font-weight: 500; }
+  .boton.mini { padding: 4px 10px; font-size: .82rem; }
+  .boton:disabled { opacity: .55; cursor: progress; }
+  :focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+  .fila { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .empuja { margin-left: auto; }
+
+  .tarjetas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+  .tarjeta { background: var(--suave); border-radius: 10px; padding: 10px 12px; }
+  .tarjeta b { display: block; font-size: 1.25rem; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .etiqueta { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--tenue); }
+
+  #alta { background: var(--suave); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+  #aviso { margin: 10px 0 0; padding: 9px 12px; border-radius: 8px; background: var(--suave); border-left: 4px solid var(--acento); }
+  #aviso.error { border-left-color: var(--mal); }
+  #aviso:empty { display: none; }
+
+  .tabla-caja { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th { text-align: left; padding: 8px 10px; background: var(--suave); }
+  th:first-child { border-radius: 8px 0 0 8px; } th:last-child { border-radius: 0 8px 8px 0; }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--linea); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  td input { width: 68px; text-align: right; padding: 4px 6px; }
+  td.acciones { white-space: nowrap; text-align: right; }
+  .vacio { text-align: center; color: var(--tenue); padding: 26px; }
+
+  #lienzo { width: 100%; height: 470px; background: var(--suave); border-radius: 10px; margin-top: 12px; touch-action: none;
+            background-image: radial-gradient(var(--linea) 1px, transparent 1px); background-size: 18px 18px; }
+  .er-caja { fill: var(--panel); stroke: var(--linea); }
+  .er-cabeza { fill: var(--tinta); }
+  .er-titulo { fill: var(--panel); font-weight: 700; font-size: 12px; letter-spacing: .05em; }
+  .er-col { fill: var(--tinta); font-size: 12.5px; }
+  .er-tipo { fill: var(--tenue); font-size: 11px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .er-marca { font-size: 9.5px; font-weight: 700; }
+  .er-pk { fill: var(--acento); color: var(--acento); } .er-fk { fill: var(--ok); color: var(--ok); }
+  .er-linea { fill: none; stroke: var(--acento); stroke-width: 1.6; }
+  .er-tabla { cursor: grab; } .er-tabla:active { cursor: grabbing; }
+  #punta path { fill: var(--acento); }
+
+  pre { background: var(--suave); padding: 10px 12px; border-radius: 8px; white-space: pre-wrap; word-break: break-word; margin: 8px 0; }
+  .dos { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 12px; }
+  .veredicto { font-weight: 600; } .veredicto.mal { color: var(--mal); } .veredicto.bien { color: var(--ok); }
+
+  .medida { display: grid; grid-template-columns: 80px minmax(0, 1fr) 190px; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--linea); }
+  .riel { background: var(--suave); border-radius: 6px; height: 14px; overflow: hidden; }
+  .barra { background: var(--acento); height: 100%; width: 0; border-radius: 6px; transition: width .35s ease; }
+
+  aside.panel { position: sticky; top: 82px; }
+  #bitacora { font-size: .78rem; margin-top: 10px; }
+  #bitacora td { padding: 5px 6px; vertical-align: top; }
+  #bitacora td:nth-child(2) { word-break: break-all; }
+  .c2 { color: var(--ok); font-weight: 700; } .c4, .c5, .c0 { color: var(--mal); font-weight: 700; }
+
+  main { min-width: 0; }
+  @media (max-width: 1000px) { .pagina { grid-template-columns: minmax(0, 1fr); } aside.panel { position: static; } }
+  @media (max-width: 640px) { header { padding: 10px 16px; } .pagina { padding: 14px 16px 32px; } .panel { padding: 14px; } .tarjetas { grid-template-columns: repeat(2, 1fr); } .medida { grid-template-columns: 70px 1fr; } .medida span:last-child { grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="marca">
+    <h1>CPremier · asignaciones</h1>
+    <span class="tenue">Un solo cliente web y la misma API REST en tres lenguajes</span>
+  </div>
+  <div class="segmento" id="selector" role="group" aria-label="Back-end"></div>
+  <span id="estado" role="status">Sin conexión</span>
+  <button class="boton sec" id="btnTema" type="button">Tema oscuro</button>
+</header>
+
+<div class="pagina">
+  <main>
+    <nav class="segmento" id="pestanas" role="tablist" aria-label="Secciones"></nav>
+
+    <section class="panel vista" id="vista-asignaciones">
+      <div class="fila">
+        <input id="buscar" type="search" placeholder="Buscar trabajador" aria-label="Buscar trabajador">
+        <button class="boton sec" id="btnBuscar" type="button">Buscar</button>
+        <button class="boton empuja" id="btnNueva" type="button" aria-expanded="false" aria-controls="alta">Nueva asignación</button>
+      </div>
+      <div class="tarjetas">
+        <div class="tarjeta"><span class="etiqueta">Asignaciones</span><b id="kRegistros">–</b></div>
+        <div class="tarjeta"><span class="etiqueta">Monto total</span><b id="kMonto">–</b></div>
+        <div class="tarjeta"><span class="etiqueta">Días asignados</span><b id="kDias">–</b></div>
+        <div class="tarjeta"><span class="etiqueta">Trabajadores</span><b id="kTrabajadores">–</b></div>
+      </div>
+      <form id="alta" class="fila" hidden>
+        <select id="nTrabajador" aria-label="Trabajador" required></select>
+        <select id="nEdificio" aria-label="Edificio" required></select>
+        <input id="nFecha" type="date" aria-label="Fecha de inicio" required>
+        <input id="nDias" type="number" placeholder="Días" aria-label="Días" style="width:86px">
+        <button class="boton">Agregar</button>
+      </form>
+      <div class="tabla-caja">
+        <table>
+          <thead><tr><th>Trabajador</th><th>Oficio</th><th>Edificio</th><th>Inicio</th><th class="num">Días</th><th class="num">Monto</th><th></th></tr></thead>
+          <tbody id="filas"></tbody>
+        </table>
+      </div>
+      <p id="aviso" role="status"></p>
+    </section>
+
+    <section class="panel vista" id="vista-diagrama" hidden>
+      <div class="fila">
+        <div><h2>Diagrama entidad-relación</h2>
+          <p class="tenue" id="erOrigen">Se arma con lo que la API lee de information_schema.</p></div>
+        <button class="boton sec empuja" id="btnAcomodar" type="button">Reacomodar</button>
+      </div>
+      <svg id="lienzo" role="img" aria-labelledby="erDescripcion">
+        <desc id="erDescripcion">Diagrama de las tablas de la base y sus llaves foráneas</desc>
+      </svg>
+      <p class="tenue" style="margin-top:8px">Arrastra las tablas para moverlas. <b class="er-pk">PK</b> es llave primaria y <b class="er-fk">FK</b> llave foránea.</p>
+    </section>
+
+    <section class="panel vista" id="vista-inyeccion" hidden>
+      <h2>Demostración de inyección de SQL</h2>
+      <p class="tenue">El mismo texto se manda a dos consultas. Una lo pega dentro del SQL y la otra lo envía como parámetro.</p>
+      <div class="fila" style="margin-top:12px">
+        <label for="oficio">Oficio</label>
+        <input id="oficio" class="mono" value="x' OR '1'='1" style="width:240px">
+        <button class="boton" id="btnDemo" type="button">Probar las dos</button>
+        <button class="boton sec" id="btnNormal" type="button">Usar «Fontanero»</button>
+      </div>
+      <div class="dos">
+        <div><span class="etiqueta">Concatenada, vulnerable</span><pre class="mono" id="sqlMala">–</pre><p id="resMala" class="veredicto"></p></div>
+        <div><span class="etiqueta">Parametrizada, segura</span><pre class="mono" id="sqlBuena">–</pre><p id="resBuena" class="veredicto"></p></div>
+      </div>
+    </section>
+
+    <section class="panel vista" id="vista-comparar" hidden>
+      <div class="fila">
+        <div><h2>Comparar los tres back-ends</h2>
+          <p class="tenue">Pide 10 veces la lista de asignaciones a cada uno, mide el tiempo y revisa que el JSON sea el mismo.</p></div>
+        <button class="boton empuja" id="btnMedir" type="button">Medir ahora</button>
+      </div>
+      <div id="medidas" style="margin-top:12px"></div>
+      <p id="veredicto" class="veredicto" style="margin-top:12px" role="status"></p>
+    </section>
+  </main>
+
+  <aside class="panel">
+    <h2>Bitácora HTTP</h2>
+    <p class="tenue">Cada renglón es una solicitud real del navegador al back-end elegido.</p>
+    <table id="bitacora" class="mono"><thead><tr><th>Método</th><th>Ruta</th><th>Código</th><th class="num">ms</th></tr></thead><tbody></tbody></table>
+  </aside>
+</div>
+
+<script>
+// Los tres back-ends exponen los mismos endpoints. Cambiar de lenguaje es cambiar la URL base.
+const BACKENDS = [
+  { nombre: 'Node.js', url: 'http://localhost:3001' },
+  { nombre: 'Python', url: 'http://localhost:3002' },
+  { nombre: 'PHP', url: 'http://localhost:3003' },
+];
+const VISTAS = [['asignaciones', 'Asignaciones'], ['diagrama', 'Diagrama ER'], ['inyeccion', 'Inyección de SQL'], ['comparar', 'Comparar back-ends']];
+// Se empieza con el back-end que sirvió esta página, si es uno de los tres.
+let actual = BACKENDS.find((b) => b.url === location.origin) || BACKENDS[0];
+let vista = 'asignaciones';
+const $ = (id) => document.getElementById(id);
+const dinero = (n) => n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Crea un elemento con sus propiedades e hijos. El texto entra por textContent, nunca como HTML.
+function el(etiqueta, props = {}, ...hijos) {
+  const e = Object.assign(document.createElement(etiqueta), props);
+  e.append(...hijos);
+  return e;
+}
+
+/* ------------------------------------------------------------------ llamadas a la API */
+// Toda llamada pasa por aquí. Mide el tiempo, la anota en la bitácora y devuelve código y datos.
+async function api(metodo, ruta, cuerpo) {
+  const inicio = performance.now();
+  let codigo = 0, datos = null;
+  try {
+    const r = await fetch(actual.url + ruta, {
+      method: metodo,
+      headers: cuerpo ? { 'Content-Type': 'application/json' } : undefined,
+      body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+    });
+    codigo = r.status;
+    datos = codigo === 204 ? null : await r.json();
+  } catch (e) {
+    datos = { error: `No hay respuesta de ${actual.nombre} en ${actual.url}. ¿Está encendido?` };
+  }
+  anotar(metodo, ruta, codigo, Math.round(performance.now() - inicio));
+  return { codigo, datos, ok: codigo >= 200 && codigo < 300 };
+}
+
+function anotar(metodo, ruta, codigo, ms) {
+  const cuerpo = $('bitacora').tBodies[0];
+  const tr = cuerpo.insertRow(0);
+  tr.append(el('td', { textContent: metodo }), el('td', { textContent: decodeURIComponent(ruta) }),
+    el('td', { textContent: codigo || 'sin red', className: 'c' + String(codigo)[0] }), el('td', { textContent: ms, className: 'num' }));
+  while (cuerpo.rows.length > 10) cuerpo.deleteRow(-1);
+}
+
+function avisar(texto, esError = false) {
+  $('aviso').textContent = texto;
+  $('aviso').className = esError ? 'error' : '';
+}
+
+/* ------------------------------------------------------------------ back-end y pestañas */
+async function elegir(backend) {
+  actual = backend;
+  [...$('selector').children].forEach((b) => b.setAttribute('aria-pressed', b.textContent === backend.nombre));
+  const r = await api('GET', '/api/info');
+  $('estado').textContent = r.ok ? `${r.datos.entorno} · ${r.datos.framework} · ${r.datos.driver}` : `${backend.nombre} sin conexión`;
+  $('estado').classList.toggle('en-linea', r.ok);
+  avisar(r.ok ? '' : r.datos.error, true);
+  if (r.ok) { await cargarCatalogos(); await mostrar(vista); }
+}
+
+async function mostrar(nombre) {
+  vista = nombre;
+  VISTAS.forEach(([id]) => { $('vista-' + id).hidden = id !== nombre; });
+  [...$('pestanas').children].forEach((b) => b.setAttribute('aria-selected', b.dataset.vista === nombre));
+  if (nombre === 'asignaciones') await listar();
+  if (nombre === 'diagrama') await cargarEsquema();
+}
+
+/* ------------------------------------------------------------------ asignaciones (CRUD) */
+async function cargarCatalogos() {
+  const [t, e] = await Promise.all([api('GET', '/api/trabajadores'), api('GET', '/api/edificios')]);
+  if (t.ok) $('nTrabajador').replaceChildren(...t.datos.map((f) => new Option(`${f.nombre} (${f.oficio})`, f.id_trabajador)));
+  if (e.ok) $('nEdificio').replaceChildren(...e.datos.map((f) => new Option(f.dir_edificio, f.id_edificio)));
+}
+
+// La llave de una asignación son tres datos, y van en la URL.
+const llave = (f) => `/api/asignaciones/${f.id_trabajador}/${f.id_edificio}/${f.fecha_inicio}`;
+
+async function listar() {                                              // READ
+  const r = await api('GET', '/api/asignaciones?buscar=' + encodeURIComponent($('buscar').value.trim()));
+  if (!r.ok) return avisar(r.datos.error, true);
+  const filas = r.datos;
+  $('kRegistros').textContent = filas.length;
+  $('kMonto').textContent = dinero(filas.reduce((s, f) => s + f.monto, 0));
+  $('kDias').textContent = filas.reduce((s, f) => s + f.num_dias, 0);
+  $('kTrabajadores').textContent = new Set(filas.map((f) => f.id_trabajador)).size;
+  if (filas.length === 0) {
+    return $('filas').replaceChildren(el('tr', {}, el('td', { colSpan: 7, className: 'vacio', textContent: 'No hay asignaciones con ese nombre.' })));
+  }
+  $('filas').replaceChildren(...filas.map((f) => {
+    const dias = el('input', { type: 'number', value: f.num_dias });
+    dias.setAttribute('aria-label', `Días de ${f.trabajador} en ${f.edificio}`);
+    const guardar = el('button', { textContent: 'Guardar', className: 'boton sec mini', type: 'button' });
+    const borrar = el('button', { textContent: 'Borrar', className: 'boton sec mini', type: 'button' });
+    guardar.onclick = async () => {                                    // UPDATE
+      const r2 = await api('PUT', llave(f), { num_dias: Number(dias.value) });
+      avisar(r2.ok ? `Días de ${f.trabajador} actualizados.` : `HTTP ${r2.codigo}. ${r2.datos.error}`, !r2.ok);
+      if (r2.ok) listar();
+    };
+    borrar.onclick = async () => {                                     // DELETE
+      if (!confirm(`¿Borrar la asignación de ${f.trabajador} en ${f.edificio}?`)) return;
+      const r2 = await api('DELETE', llave(f));
+      avisar(r2.ok ? 'Asignación borrada.' : `HTTP ${r2.codigo}. ${r2.datos.error}`, !r2.ok);
+      listar();
+    };
+    return el('tr', {},
+      el('td', { textContent: f.trabajador }), el('td', { textContent: f.oficio }), el('td', { textContent: f.edificio }),
+      el('td', { textContent: f.fecha_inicio }), el('td', { className: 'num' }, dias),
+      el('td', { className: 'num', textContent: dinero(f.monto) }), el('td', { className: 'acciones' }, guardar, ' ', borrar));
+  }));
+}
+
+$('alta').onsubmit = async (evento) => {                               // CREATE
+  evento.preventDefault();
+  const r = await api('POST', '/api/asignaciones', {
+    id_trabajador: Number($('nTrabajador').value), id_edificio: Number($('nEdificio').value),
+    fecha_inicio: $('nFecha').value, num_dias: Number($('nDias').value),
+  });
+  avisar(r.ok ? 'Asignación creada (HTTP 201).' : `HTTP ${r.codigo}. ${r.datos.error}`, !r.ok);
+  if (r.ok) { $('nDias').value = ''; listar(); }
+};
+
+/* ------------------------------------------------------------------ diagrama ER */
+const ER = { ancho: 224, cabeza: 34, renglon: 26, tablas: [], relaciones: [], pos: {} };
+const SVG = 'http://www.w3.org/2000/svg';
+function svg(etiqueta, attrs = {}, texto) {
+  const e = document.createElementNS(SVG, etiqueta);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (texto !== undefined) e.textContent = texto;
+  return e;
+}
+
+async function cargarEsquema() {
+  const r = await api('GET', '/api/esquema');
+  if (!r.ok) return;
+  // La API manda una fila por columna. Aquí se agrupan por tabla.
+  const porTabla = new Map();
+  for (const c of r.datos.columnas) {
+    if (!porTabla.has(c.tabla)) porTabla.set(c.tabla, []);
+    porTabla.get(c.tabla).push(c);
+  }
+  ER.tablas = [...porTabla].map(([nombre, columnas]) => ({ nombre, columnas }));
+  ER.relaciones = r.datos.relaciones;
+  $('erOrigen').textContent = `${ER.tablas.length} tablas y ${ER.relaciones.length} llaves foráneas, leídas de information_schema por ${actual.nombre}.`;
+  if (ER.tablas.some((t) => !ER.pos[t.nombre])) acomodar();
+  dibujar();
+}
+
+const altoTabla = (t) => ER.cabeza + t.columnas.length * ER.renglon + 6;
+
+// Las tablas que apuntan a otras van al centro y las referenciadas se reparten a los lados.
+function acomodar() {
+  const total = $('lienzo').clientWidth || 800;
+  const hijas = ER.tablas.filter((t) => ER.relaciones.some((r) => r.tabla === t.nombre && r.ref_tabla !== t.nombre));
+  const madres = ER.tablas.filter((t) => !hijas.includes(t));
+  const columnas = [[], hijas, []];
+  madres.forEach((t, i) => columnas[i % 2 === 0 ? 0 : 2].push(t));
+  const xs = [24, (total - ER.ancho) / 2, total - ER.ancho - 60];
+  columnas.forEach((lista, c) => {
+    let y = c === 1 ? 150 : 28;
+    for (const t of lista) { ER.pos[t.nombre] = { x: xs[c], y }; y += altoTabla(t) + 28; }
+  });
+}
+
+function dibujar() {
+  const lienzo = $('lienzo');
+  [...lienzo.querySelectorAll('g, defs, path')].forEach((n) => n.remove());
+  const defs = svg('defs');
+  const punta = svg('marker', { id: 'punta', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' });
+  punta.append(svg('path', { d: 'M0 0 L10 5 L0 10 z' }));
+  defs.append(punta);
+  lienzo.append(defs);
+
+  // Punto de conexión de una columna, a la izquierda o a la derecha de su tabla.
+  const ancla = (tabla, columna, derecha) => {
+    const t = ER.tablas.find((x) => x.nombre === tabla), p = ER.pos[tabla];
+    const i = t.columnas.findIndex((c) => c.columna === columna);
+    return { x: p.x + (derecha ? ER.ancho : 0), y: p.y + ER.cabeza + i * ER.renglon + ER.renglon / 2 };
+  };
+  for (const r of ER.relaciones) {
+    const a = ER.pos[r.tabla], b = ER.pos[r.ref_tabla];
+    const mismo = r.tabla === r.ref_tabla;
+    const aDerecha = mismo || a.x + ER.ancho / 2 < b.x + ER.ancho / 2;
+    const bDerecha = mismo || !aDerecha;
+    const p1 = ancla(r.tabla, r.columna, aDerecha), p2 = ancla(r.ref_tabla, r.ref_columna, bDerecha);
+    const tiro = mismo ? 46 : Math.max(40, Math.abs(p2.x - p1.x) / 2);
+    const c1 = p1.x + (aDerecha ? tiro : -tiro), c2 = p2.x + (bDerecha ? tiro : -tiro);
+    const linea = svg('path', { class: 'er-linea', 'marker-end': 'url(#punta)', d: `M${p1.x} ${p1.y} C${c1} ${p1.y} ${c2} ${p2.y} ${p2.x} ${p2.y}` });
+    linea.append(svg('title', {}, `${r.tabla}.${r.columna} apunta a ${r.ref_tabla}.${r.ref_columna}`));
+    lienzo.append(linea);
+  }
+
+  for (const t of ER.tablas) {
+    const p = ER.pos[t.nombre];
+    const g = svg('g', { class: 'er-tabla', transform: `translate(${p.x} ${p.y})` });
+    g.append(svg('rect', { class: 'er-caja', width: ER.ancho, height: altoTabla(t), rx: 9 }));
+    g.append(svg('path', { class: 'er-cabeza', d: `M0 9 a9 9 0 0 1 9 -9 h${ER.ancho - 18} a9 9 0 0 1 9 9 v${ER.cabeza - 9} h-${ER.ancho} z` }));
+    g.append(svg('text', { class: 'er-titulo', x: 12, y: 22 }, t.nombre.toUpperCase()));
+    t.columnas.forEach((c, i) => {
+      const y = ER.cabeza + i * ER.renglon + 18;
+      const esFk = ER.relaciones.some((r) => r.tabla === t.nombre && r.columna === c.columna);
+      if (c.llave === 'PRI') g.append(svg('text', { class: 'er-marca er-pk', x: 10, y }, 'PK'));
+      if (esFk) g.append(svg('text', { class: 'er-marca er-fk', x: c.llave === 'PRI' ? 27 : 10, y }, 'FK'));
+      g.append(svg('text', { class: 'er-col', x: 46, y }, c.columna));
+      g.append(svg('text', { class: 'er-tipo', x: ER.ancho - 10, y, 'text-anchor': 'end' }, c.tipo));
+    });
+    arrastrable(g, t.nombre);
+    lienzo.append(g);
+  }
+}
+
+// Mover una tabla con el ratón o el dedo. Al soltar, la posición queda guardada en ER.pos.
+function arrastrable(g, nombre) {
+  g.onpointerdown = (inicio) => {
+    const p = ER.pos[nombre], dx = inicio.clientX - p.x, dy = inicio.clientY - p.y;
+    const mover = (e) => {
+      ER.pos[nombre] = { x: Math.max(0, e.clientX - dx), y: Math.max(0, e.clientY - dy) };
+      dibujar();
+    };
+    const soltar = () => { window.removeEventListener('pointermove', mover); window.removeEventListener('pointerup', soltar); };
+    window.addEventListener('pointermove', mover);
+    window.addEventListener('pointerup', soltar);
+  };
+}
+
+/* ------------------------------------------------------------------ inyección de SQL */
+async function demo() {
+  for (const [modo, sql, res] of [['concatenada', 'sqlMala', 'resMala'], ['parametrizada', 'sqlBuena', 'resBuena']]) {
+    const r = await api('GET', `/api/demo/inyeccion?modo=${modo}&oficio=` + encodeURIComponent($('oficio').value));
+    if (!r.ok) { $(res).textContent = r.datos.error; continue; }
+    $(sql).textContent = r.datos.sql;
+    const fallo = r.datos.filas[0] && r.datos.filas[0].error_sql;
+    $(res).textContent = fallo ? `Error de SQL: ${fallo}`
+      : `${r.datos.filas.length} fila(s): ${r.datos.filas.map((f) => f.nombre).join(', ') || 'ninguna'}`;
+  }
+  // Si las dos consultas devuelven distinto número de filas, el texto alteró la consulta concatenada.
+  const distinto = $('resMala').textContent !== $('resBuena').textContent;
+  $('resMala').className = 'veredicto ' + (distinto ? 'mal' : '');
+  $('resBuena').className = 'veredicto ' + (distinto ? 'bien' : '');
+}
+
+/* ------------------------------------------------------------------ comparar back-ends */
+async function medir() {
+  $('btnMedir').disabled = true;
+  $('veredicto').textContent = 'Midiendo…';
+  $('veredicto').className = 'veredicto';
+  const resultados = [];
+  for (const b of BACKENDS) {
+    const tiempos = [];
+    let texto = null;
+    try {
+      for (let i = 0; i < 10; i++) {
+        const inicio = performance.now();
+        const r = await fetch(b.url + '/api/asignaciones');
+        const filas = await r.json();
+        // Cada lenguaje ordena las llaves del JSON a su manera. Se ordenan aquí para comparar solo el contenido.
+        texto = JSON.stringify(filas, Object.keys(filas[0] || {}).sort());
+        tiempos.push(performance.now() - inicio);
+      }
+    } catch (e) { texto = null; }
+    resultados.push({ ...b, texto, promedio: tiempos.reduce((s, t) => s + t, 0) / (tiempos.length || 1), minimo: Math.min(...tiempos) });
+  }
+  const vivos = resultados.filter((r) => r.texto !== null);
+  const tope = Math.max(...vivos.map((r) => r.promedio), 1);
+  $('medidas').replaceChildren(...resultados.map((r) => {
+    const barra = el('div', { className: 'barra' });
+    const fila = el('div', { className: 'medida' }, el('b', { textContent: r.nombre }), el('div', { className: 'riel' }, barra),
+      el('span', { className: 'tenue', textContent: r.texto === null ? 'apagado' : `promedio ${r.promedio.toFixed(1)} ms · mínimo ${r.minimo.toFixed(1)} ms` }));
+    if (r.texto !== null) requestAnimationFrame(() => { barra.style.width = (r.promedio / tope * 100) + '%'; });
+    return fila;
+  }));
+  const iguales = vivos.length > 1 && vivos.every((r) => r.texto === vivos[0].texto);
+  $('veredicto').textContent = vivos.length < 2 ? 'Enciende al menos dos back-ends para poder compararlos.'
+    : iguales ? `Los ${vivos.length} back-ends encendidos devolvieron exactamente el mismo JSON.`
+      : 'Las respuestas no son iguales. Alguna API no respeta el contrato.';
+  $('veredicto').className = 'veredicto ' + (vivos.length < 2 ? '' : iguales ? 'bien' : 'mal');
+  $('btnMedir').disabled = false;
+}
+
+/* ------------------------------------------------------------------ arranque */
+function ponerTema(oscuro) {
+  document.documentElement.dataset.tema = oscuro ? 'oscuro' : 'claro';
+  $('btnTema').textContent = oscuro ? 'Tema claro' : 'Tema oscuro';
+  try { localStorage.setItem('tema', oscuro ? 'oscuro' : 'claro'); } catch (e) { /* sin almacenamiento, no pasa nada */ }
+}
+let temaGuardado = null;
+try { temaGuardado = localStorage.getItem('tema'); } catch (e) { /* igual */ }
+ponerTema(temaGuardado ? temaGuardado === 'oscuro' : matchMedia('(prefers-color-scheme: dark)').matches);
+$('btnTema').onclick = () => ponerTema(document.documentElement.dataset.tema !== 'oscuro');
+
+BACKENDS.forEach((b) => $('selector').append(el('button', { textContent: b.nombre, type: 'button', onclick: () => elegir(b) })));
+VISTAS.forEach(([id, titulo]) => {
+  const boton = el('button', { textContent: titulo, type: 'button', onclick: () => mostrar(id) });
+  boton.dataset.vista = id;
+  boton.setAttribute('role', 'tab');
+  $('pestanas').append(boton);
+});
+$('btnBuscar').onclick = listar;
+$('buscar').onkeydown = (e) => { if (e.key === 'Enter') listar(); };
+$('btnNueva').onclick = () => { $('alta').hidden = !$('alta').hidden; $('btnNueva').setAttribute('aria-expanded', !$('alta').hidden); };
+$('btnAcomodar').onclick = () => { acomodar(); dibujar(); };
+$('btnDemo').onclick = demo;
+$('btnNormal').onclick = () => { $('oficio').value = 'Fontanero'; demo(); };
+$('btnMedir').onclick = medir;
+elegir(actual);
+</script>
+</body>
+</html>

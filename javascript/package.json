@@ -1,0 +1,17 @@
+{
+  "name": "ti06-holamundo-bd-javascript",
+  "version": "1.0.0",
+  "description": "Prototipos HolaMundo de acceso a MySQL con Node.js (TI06, Base de Datos)",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "hola1": "node --env-file-if-exists=.env holamundo01.js",
+    "hola2": "node --env-file-if-exists=.env holamundo02.js",
+    "hola3": "node --env-file-if-exists=.env holamundo03_api.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "mysql2": "^3.11.5"
+  }
+}
